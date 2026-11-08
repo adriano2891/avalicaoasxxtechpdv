@@ -910,28 +910,34 @@ export const PosView: React.FC<PosViewProps> = ({
           )}
         </div>
 
-        {/* Barra Flutuante Mobile para Ver Pedido / Pagar se houver itens */}
+        {/* Barra Flutuante Mobile Fixa no Rodapé: Finalizar Venda / Ver Pedido (100% visível, sem cortes) */}
         {cartItems.length > 0 && (
-          <div className="lg:hidden absolute bottom-2 left-2 right-2 z-30 pointer-events-auto">
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-2.5 sm:p-3 bg-gradient-to-t from-[#0a1017] via-[#0a1017]/95 to-transparent backdrop-blur-xs pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_25px_rgba(0,0,0,0.7)] pointer-events-auto">
             <button
               type="button"
               onClick={() => setMobilePosTab('cart')}
-              className="w-full bg-[#00E676] hover:bg-[#00c853] active:scale-[0.98] text-stone-950 font-black px-3.5 py-3 rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center justify-between transition-all cursor-pointer border border-emerald-300"
+              className="w-full bg-[#00E676] hover:bg-[#00c853] active:scale-[0.98] text-stone-950 font-black px-4 py-3 rounded-2xl shadow-xl shadow-emerald-500/25 flex items-center justify-between transition-all cursor-pointer border border-emerald-300"
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl bg-stone-950/20 flex items-center justify-center shrink-0">
-                  <ShoppingCart className="w-4 h-4 text-stone-950 stroke-[2.5]" />
+                  <ShoppingCart className="w-4 h-4 text-stone-950 stroke-[3]" />
                 </div>
-                <div className="text-left leading-tight">
-                  <span className="block text-xs font-black uppercase tracking-wide">
-                    {cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.reduce((acc, i) => acc + i.quantity, 0) === 1 ? 'item no pedido' : 'itens no pedido'}
+                <div className="text-left leading-tight truncate">
+                  <div className="flex items-center gap-1.5">
+                    <span className="block text-xs font-black uppercase tracking-wider">
+                      {cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.reduce((acc, i) => acc + i.quantity, 0) === 1 ? 'item' : 'itens'}
+                    </span>
+                    <span className="text-[10px] font-bold opacity-75 hidden xs:inline">&bull; Ver Pedido</span>
+                  </div>
+                  <span className="font-mono text-xs sm:text-sm font-black">
+                    {formatCurrency(totals.final)}
                   </span>
-                  <span className="text-[10px] font-bold opacity-85">Toque para ver o pedido &amp; pagar</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-stone-950/20">
-                  {formatCurrency(totals.final)}
+
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wide">
+                  FINALIZAR VENDA
                 </span>
                 <ArrowRight className="w-4 h-4 stroke-[3]" />
               </div>
@@ -1461,7 +1467,7 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* 4. RESUMO FINANCEIRO & BOTÕES DE OPERAÇÃO (Ajustado, sem cortes, sem squeeze) */}
-        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-2">
+        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-2 pb-[max(1.75rem,env(safe-area-inset-bottom))] mb-2 lg:mb-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
             {/* Bloco Esquerdo: Resumo Financeiro Completo */}
             <div className="flex flex-col justify-between p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5 text-xs">
@@ -1640,7 +1646,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 onClick={handleOpenPayment}
                 disabled={cartItems.length === 0}
-                className="w-full py-3 px-3 rounded-xl font-black text-sm bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                className="w-full py-3.5 px-4 rounded-2xl font-black text-sm sm:text-base bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
                 <span>FINALIZAR VENDA</span>

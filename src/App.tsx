@@ -133,7 +133,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${currentTab === 'pos' ? 'bg-[#0a1017] lg:bg-stone-100 h-screen h-[100dvh] lg:h-auto overflow-hidden lg:overflow-visible' : 'bg-stone-100'} text-stone-900 font-sans`}>
+    <div className={`min-h-screen flex flex-col ${currentTab === 'pos' ? 'bg-[#0a1017] lg:bg-stone-100 h-screen h-[100dvh] supports-[height:100svh]:h-[100svh] lg:h-auto overflow-hidden lg:overflow-visible' : 'bg-stone-100'} text-stone-900 font-sans`}>
       {/* Barra de Topo */}
       <div className={`print:hidden ${currentTab === 'pos' ? 'hidden lg:block' : 'block'}`}>
         <Navbar
