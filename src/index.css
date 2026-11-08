@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/* Touch scroll e melhorias de rolagem fluida para PDV mobile */
+.touch-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* Scrollbar elegante e visível no tema escuro do PDV */
+.custom-pos-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.custom-pos-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-pos-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 9999px;
+}
+
+.custom-pos-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+
+.custom-pos-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.7);
+}
+
 @media print {
   /* Configuração padrão de página para documentos e relatórios A4 / Tamanho padrão */
   @page {

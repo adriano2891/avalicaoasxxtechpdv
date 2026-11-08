@@ -120,7 +120,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${currentTab === 'pos' ? 'bg-[#0a1017] lg:bg-stone-100' : 'bg-stone-100'} text-stone-900 font-sans`}>
+    <div className={`min-h-screen flex flex-col ${currentTab === 'pos' ? 'bg-[#0a1017] lg:bg-stone-100 h-screen h-[100dvh] lg:h-auto overflow-hidden lg:overflow-visible' : 'bg-stone-100'} text-stone-900 font-sans`}>
       {/* Barra de Topo */}
       <div className={`print:hidden ${currentTab === 'pos' ? 'hidden lg:block' : 'block'}`}>
         <Navbar
@@ -146,7 +146,7 @@ export default function App() {
       {/* Área de Conteúdo Principal */}
       <main className={
         currentTab === 'pos'
-          ? 'flex-1 w-full mx-auto p-0 lg:p-3 max-w-none lg:max-w-[1800px] h-[100dvh] lg:h-auto overflow-hidden lg:overflow-visible print:p-0'
+          ? 'flex-1 min-h-0 flex flex-col w-full mx-auto p-0 lg:p-3 max-w-none lg:max-w-[1800px] overflow-hidden lg:overflow-visible print:p-0'
           : 'flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 print:p-0 print:max-w-none'
       }>
         {currentTab === 'dashboard' && (

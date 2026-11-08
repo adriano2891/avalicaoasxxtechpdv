@@ -487,7 +487,7 @@ export const PosView: React.FC<PosViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full lg:grid lg:grid-cols-12 gap-0 lg:gap-3 lg:h-[calc(100vh-130px)] lg:min-h-[580px] lg:max-h-[calc(100vh-110px)] relative overflow-hidden bg-[#0a1017]">
+    <div className="flex flex-col flex-1 min-h-0 h-full w-full lg:grid lg:grid-cols-12 gap-0 lg:gap-3 lg:h-[calc(100vh-130px)] lg:min-h-[580px] lg:max-h-[calc(100vh-110px)] relative overflow-hidden bg-[#0a1017]">
       {/* 0. BARRA SUPERIOR EXCLUSIVA DO PDV MOBILE: VOLTAR AO MENU PRINCIPAL + OPERADOR + STATUS */}
       <div className="lg:hidden flex items-center justify-between px-3 py-2.5 bg-[#0d1520] border-b border-slate-800 text-white shrink-0 z-20">
         <button
@@ -546,7 +546,7 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* COLUNA ESQUERDA: CATÁLOGO DE PRODUTOS & IMAGENS (Cols 1-7) */}
-      <div className={`${mobilePosTab === 'catalog' ? 'flex' : 'hidden'} lg:flex lg:col-span-7 xl:col-span-7 2xl:col-span-7 flex-col flex-1 min-h-0 h-full bg-[#0d1520] lg:rounded-2xl lg:border lg:border-slate-800 shadow-xl overflow-hidden`}>
+      <div className={`${mobilePosTab === 'catalog' ? 'flex' : 'hidden'} lg:flex lg:col-span-7 xl:col-span-7 2xl:col-span-7 flex-col flex-1 min-h-0 lg:h-full bg-[#0d1520] lg:rounded-2xl lg:border lg:border-slate-800 shadow-xl overflow-hidden relative`}>
         {/* Barra Superior do Catálogo: Filtros e Pesquisa */}
         <div className="p-3 border-b border-slate-800 space-y-2.5 bg-[#0d1520] shrink-0">
           <div className="flex items-center gap-2.5 justify-between">
@@ -613,69 +613,114 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         </div>
 
-        {/* Grelha de Produtos com Foto Correspondente */}
-        <div className="flex-1 p-2.5 sm:p-3 overflow-y-auto overscroll-contain">
+        {/* Grelha de Produtos com Foto Correspondente e Rolagem Fluida */}
+        <div className="flex-1 min-h-0 p-2.5 sm:p-3 overflow-y-auto overscroll-y-contain custom-pos-scrollbar touch-scroll-container pb-28 sm:pb-32">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center h-full min-h-[200px]">
               <span className="text-sm font-semibold text-stone-400">Carregando catálogo...</span>
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-stone-500 gap-2">
+            <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-stone-500 gap-2">
               <Utensils className="w-10 h-10 stroke-[1.5]" />
               <p className="text-sm font-semibold">Nenhum produto encontrado nesta categoria.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
-              {filteredProducts.map((prod) => (
-                <button
-                  key={prod.id}
-                  onClick={() => addToCart(prod)}
-                  className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-[#131d2b] border border-slate-800 hover:border-emerald-500/80 hover:bg-[#172335] active:scale-95 transition-all group relative cursor-pointer min-h-[160px] shadow-sm"
-                >
-                  {prod.isFavorite && (
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 absolute top-2 right-2 z-10" />
-                  )}
+              {filteredProducts.map((prod) => {
+                const itemInCart = cartItems.find((it) => it.productId === prod.id && !it.notes);
+                const qtyInCart = itemInCart?.quantity || 0;
 
-                  {/* Imagem do Produto Correspondente */}
-                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-[#0d1520]/80 border border-slate-800/80 flex items-center justify-center relative shrink-0 p-1 group-hover:border-slate-700 transition-colors">
-                    <img
-                      src={getProductImage(prod)}
-                      alt={prod.name}
-                      className="max-h-full max-w-full object-contain group-hover:scale-108 transition-transform duration-300 drop-shadow-md"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                  </div>
+                return (
+                  <button
+                    key={prod.id}
+                    onClick={() => addToCart(prod)}
+                    className={`flex flex-col items-center justify-between p-2.5 rounded-2xl border transition-all group relative cursor-pointer min-h-[160px] shadow-sm touch-manipulation select-none active:scale-95 ${
+                      qtyInCart > 0
+                        ? 'bg-[#152538] border-emerald-500/80 shadow-emerald-500/10'
+                        : 'bg-[#131d2b] border-slate-800 hover:border-emerald-500/80 hover:bg-[#172335]'
+                    }`}
+                  >
+                    {qtyInCart > 0 && (
+                      <span className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded-lg bg-emerald-500 text-stone-950 font-black text-[10px] shadow-md flex items-center gap-0.5 animate-in fade-in zoom-in-75">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>{qtyInCart}</span>
+                      </span>
+                    )}
 
-                  {/* Nome do Produto */}
-                  <h4 className="font-bold text-xs sm:text-sm text-white leading-tight line-clamp-1 group-hover:text-emerald-400 transition-colors text-center w-full mt-2">
-                    {prod.name}
-                  </h4>
+                    {prod.isFavorite && (
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 absolute top-2 right-2 z-10" />
+                    )}
 
-                  {/* Descrição do Produto (Reflete em tempo real no PDV) */}
-                  {prod.description ? (
-                    <p className="text-[10px] text-stone-400 line-clamp-1 text-center w-full mt-0.5 px-1 font-normal" title={prod.description}>
-                      {prod.description}
-                    </p>
-                  ) : null}
+                    {/* Imagem do Produto Correspondente */}
+                    <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-[#0d1520]/80 border border-slate-800/80 flex items-center justify-center relative shrink-0 p-1 group-hover:border-slate-700 transition-colors">
+                      <img
+                        src={getProductImage(prod)}
+                        alt={prod.name}
+                        className="max-h-full max-w-full object-contain group-hover:scale-108 transition-transform duration-300 drop-shadow-md"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                    </div>
 
-                  {/* Preço do Produto */}
-                  <div className="mt-1 flex items-center justify-center w-full">
-                    <span className="text-sm sm:text-base font-black text-white font-mono">
-                      {formatCurrency(prod.price)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+                    {/* Nome do Produto */}
+                    <h4 className="font-bold text-xs sm:text-sm text-white leading-tight line-clamp-1 group-hover:text-emerald-400 transition-colors text-center w-full mt-2">
+                      {prod.name}
+                    </h4>
+
+                    {/* Descrição do Produto (Reflete em tempo real no PDV) */}
+                    {prod.description ? (
+                      <p className="text-[10px] text-stone-400 line-clamp-1 text-center w-full mt-0.5 px-1 font-normal" title={prod.description}>
+                        {prod.description}
+                      </p>
+                    ) : null}
+
+                    {/* Preço do Produto */}
+                    <div className="mt-1 flex items-center justify-center w-full">
+                      <span className="text-sm sm:text-base font-black text-white font-mono">
+                        {formatCurrency(prod.price)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
+
+        {/* Barra Flutuante Mobile para Ver Pedido / Pagar se houver itens */}
+        {cartItems.length > 0 && (
+          <div className="lg:hidden absolute bottom-2 left-2 right-2 z-30 pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => setMobilePosTab('cart')}
+              className="w-full bg-[#00E676] hover:bg-[#00c853] active:scale-[0.98] text-stone-950 font-black px-3.5 py-3 rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center justify-between transition-all cursor-pointer border border-emerald-300"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-stone-950/20 flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-4 h-4 text-stone-950 stroke-[2.5]" />
+                </div>
+                <div className="text-left leading-tight">
+                  <span className="block text-xs font-black uppercase tracking-wide">
+                    {cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.reduce((acc, i) => acc + i.quantity, 0) === 1 ? 'item no pedido' : 'itens no pedido'}
+                  </span>
+                  <span className="text-[10px] font-bold opacity-85">Toque para ver o pedido &amp; pagar</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-stone-950/20">
+                  {formatCurrency(totals.final)}
+                </span>
+                <ArrowRight className="w-4 h-4 stroke-[3]" />
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* COLUNA DIREITA: CAIXA PDV PROFISSIONAL ASSX TECH (Ajustado, sem cortes e 100% responsivo) */}
-      <div className={`${mobilePosTab === 'cart' ? 'flex' : 'hidden'} lg:flex lg:col-span-5 xl:col-span-5 2xl:col-span-5 flex-col flex-1 min-h-0 h-full bg-[#0d1520] lg:rounded-2xl lg:border-2 lg:border-emerald-500 shadow-2xl overflow-hidden text-white`}>
+      <div className={`${mobilePosTab === 'cart' ? 'flex' : 'hidden'} lg:flex lg:col-span-5 xl:col-span-5 2xl:col-span-5 flex-col flex-1 min-h-0 lg:h-full bg-[#0d1520] lg:rounded-2xl lg:border-2 lg:border-emerald-500 shadow-2xl overflow-hidden text-white`}>
         {/* 1. CABEÇALHO DA VENDA */}
         <div className="p-2 sm:p-3 border-b border-slate-800 bg-[#0d1520] space-y-2 shrink-0">
           {/* Botão de retorno ao cardápio exclusivo em mobile */}
@@ -880,7 +925,7 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* 3. LISTA DE PRODUTOS ADICIONADOS */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-2.5 space-y-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain custom-pos-scrollbar touch-scroll-container p-2 sm:p-2.5 space-y-1.5">
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-stone-500 gap-2 py-6">
               <div className="w-14 h-14 rounded-full bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-500">
@@ -1006,7 +1051,7 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* 4. RESUMO FINANCEIRO & BOTÕES DE OPERAÇÃO (100% Ajustado, sem corte) */}
-        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-1.5">
+        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-1.5 overflow-y-auto max-h-[46vh] lg:max-h-none custom-pos-scrollbar">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
             {/* Bloco Esquerdo: Resumo Financeiro */}
             <div className="flex flex-col justify-between p-2 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1 text-xs">
