@@ -18,6 +18,7 @@ interface NavbarProps {
   pendingInvoicesCount: number;
   onNavigateToInvoices: () => void;
   company?: CompanyInfo | null;
+  posDraftCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   pendingInvoicesCount,
   onNavigateToInvoices,
   company,
+  posDraftCount = 0,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-stone-900 text-stone-100 border-b border-stone-800 shadow-md">
@@ -106,15 +108,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Botão Principal: Nova Venda (Sempre Destacado) */}
+            {/* Botão Principal: Nova Venda ou Continuar Venda em Rascunho */}
             <button
               type="button"
               onClick={onNavigateToPOS}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-md active:scale-95 ${
+                posDraftCount > 0
+                  ? 'bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-emerald-500/25 font-black'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 shadow-amber-500/20'
+              }`}
+              title={posDraftCount > 0 ? `Continuar venda salva como rascunho (${posDraftCount} itens)` : 'Abrir PDV para nova venda'}
             >
-              <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-950 stroke-[2.5] shrink-0" />
-              <span className="tracking-wide hidden xs:inline">Nova Venda</span>
-              <span className="tracking-wide xs:hidden">PDV</span>
+              {posDraftCount > 0 ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping inline-block" />
+                  <span className="tracking-wide hidden xs:inline">Continuar Venda ({posDraftCount})</span>
+                  <span className="tracking-wide xs:hidden">PDV ({posDraftCount})</span>
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-950 stroke-[2.5] shrink-0" />
+                  <span className="tracking-wide hidden xs:inline">Nova Venda</span>
+                  <span className="tracking-wide xs:hidden">PDV</span>
+                </>
+              )}
             </button>
 
             {/* Seletor de Operador / Perfil */}

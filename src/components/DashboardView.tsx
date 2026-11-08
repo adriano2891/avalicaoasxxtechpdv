@@ -18,8 +18,12 @@ import {
   ShieldAlert,
   ArrowRight,
   MapPin,
+  ShoppingCart,
+  Trash2,
 } from 'lucide-react';
 import { InvoiceTicketModal } from './InvoiceTicketModal';
+import { getPosDraft, clearPosDraft } from '../lib/draftStorage';
+import { PosDraftOrder } from '../types';
 
 interface DashboardViewProps {
   onStartSale: () => void;
@@ -39,6 +43,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDoc, setSelectedDoc] = useState<FiscalDocument | null>(null);
+  const [posDraft, setPosDraft] = useState<PosDraftOrder | null>(() => getPosDraft());
+
+  useEffect(() => {
+    const handleDraftUpdate = () => {
+      setPosDraft(getPosDraft());
+    };
+    window.addEventListener('pos_draft_updated', handleDraftUpdate);
+    return () => window.removeEventListener('pos_draft_updated', handleDraftUpdate);
+  }, []);
+
+  const handleDiscardDraft = () => {
+    if (window.confirm('Deseja realmente descartar os itens salvos neste rascunho de venda?')) {
+      clearPosDraft();
+      setPosDraft(null);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -92,6 +112,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Banner de Avisos Importantes */}
       <div className="space-y-3">
+        {/* Banner de Venda em Andamento Salva como Rascunho */}
+        {posDraft && posDraft.cartItems && posDraft.cartItems.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900 to-emerald-950/80 border-2 border-emerald-500/60 text-white shadow-lg animate-in fade-in">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="p-3 rounded-xl bg-emerald-500 text-slate-950 font-black shrink-0 shadow-md shadow-emerald-500/30">
+                <ShoppingCart className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-black text-sm sm:text-base text-white">
+                    Venda em Andamento Salva como Rascunho
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-[#00E676] text-slate-950 shadow-xs">
+                    {posDraft.cartItems.reduce((acc: number, i: any) => acc + i.quantity, 0)} {posDraft.cartItems.length === 1 ? 'item' : 'itens'}
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-200/90 mt-1">
+                  Total: <strong className="text-white font-mono text-sm">{formatCurrency(posDraft.totalFinal || 0)}</strong> &bull;{' '}
+                  <span>{posDraft.saleType === 'dine_in' ? `Mesa: ${posDraft.tableNumber || 'Mesa 01'}` : posDraft.saleType === 'takeaway' ? 'Retirada no Balcão' : 'Entrega em Domicílio'}</span> &bull;{' '}
+                  Cliente: <strong>{posDraft.selectedCustomer?.name || 'Consumidor Final'}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-300 hover:text-white hover:bg-rose-950/70 border border-rose-800/80 transition-colors cursor-pointer"
+                title="Descartar este rascunho de venda"
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                onClick={onStartSale}
+                className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-black rounded-xl bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <span>Continuar Venda no PDV</span>
+                <ArrowRight className="w-4 h-4 stroke-[3]" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {!activeShiftOpen && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-xs">
             <div className="flex items-start sm:items-center gap-3">
@@ -157,18 +221,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <button
             onClick={loadData}
-            className="p-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors"
+            className="p-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
             title="Atualizar dados"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={onStartSale}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-extrabold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-500/25 active:scale-95 transition-all"
-          >
-            <PlusCircle className="w-5 h-5 stroke-[2.5]" />
-            <span>Iniciar Nova Venda</span>
-          </button>
+          {posDraft && posDraft.cartItems && posDraft.cartItems.length > 0 ? (
+            <button
+              onClick={onStartSale}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-black bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
+            >
+              <ShoppingCart className="w-5 h-5 stroke-[2.5]" />
+              <span>Continuar Venda ({posDraft.cartItems.reduce((acc, i) => acc + i.quantity, 0)})</span>
+              <ArrowRight className="w-4 h-4 stroke-[3]" />
+            </button>
+          ) : (
+            <button
+              onClick={onStartSale}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-extrabold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-500/25 active:scale-95 transition-all cursor-pointer"
+            >
+              <PlusCircle className="w-5 h-5 stroke-[2.5]" />
+              <span>Iniciar Nova Venda</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -29,19 +29,28 @@ interface NavigationTabsProps {
   currentTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   pendingInvoicesCount: number;
+  posDraftCount?: number;
 }
 
 export const NavigationTabs: React.FC<NavigationTabsProps> = ({
   currentTab,
   onTabChange,
   pendingInvoicesCount,
+  posDraftCount = 0,
 }) => {
   // Controle de expansão/colapso no mobile (inicia aberto para que todas as abas fiquem visíveis)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
 
   const tabs = [
     { id: 'dashboard', label: 'Painel', shortLabel: 'Painel', icon: LayoutDashboard },
-    { id: 'pos', label: 'Nova Venda (PDV)', shortLabel: 'PDV', icon: ShoppingCart },
+    {
+      id: 'pos',
+      label: posDraftCount > 0 ? `PDV (Rascunho: ${posDraftCount})` : 'Nova Venda (PDV)',
+      shortLabel: posDraftCount > 0 ? `PDV (${posDraftCount})` : 'PDV',
+      icon: ShoppingCart,
+      badge: posDraftCount > 0 ? posDraftCount : undefined,
+      badgeColor: 'emerald',
+    },
     { id: 'sales', label: 'Vendas', shortLabel: 'Vendas', icon: Receipt },
     {
       id: 'invoices',
@@ -49,6 +58,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
       shortLabel: 'Notas',
       icon: FileText,
       badge: pendingInvoicesCount > 0 ? pendingInvoicesCount : undefined,
+      badgeColor: 'rose',
     },
     { id: 'products', label: 'Produtos', shortLabel: 'Produtos', icon: Utensils },
     { id: 'customers', label: 'Clientes', shortLabel: 'Clientes', icon: Users },
@@ -83,7 +93,11 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
                 <Icon className={`w-4 h-4 ${isActive ? 'text-stone-950' : 'text-stone-500'}`} />
                 <span>{tab.label}</span>
                 {tab.badge && (
-                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500 text-white animate-pulse">
+                  <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-extrabold rounded-full ${
+                    tab.badgeColor === 'emerald'
+                      ? 'bg-[#00E676] text-slate-950 font-black shadow-xs'
+                      : 'bg-rose-500 text-white animate-pulse'
+                  }`}>
                     {tab.badge}
                   </span>
                 )}
@@ -105,7 +119,11 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
                 <CurrentIcon className="w-3.5 h-3.5 text-stone-950 shrink-0" />
                 <span className="truncate">{currentTabObj.label}</span>
                 {currentTabObj.badge && (
-                  <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-rose-600 text-white">
+                  <span className={`ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full ${
+                    currentTabObj.badgeColor === 'emerald'
+                      ? 'bg-[#00E676] text-slate-950'
+                      : 'bg-rose-600 text-white'
+                  }`}>
                     {currentTabObj.badge}
                   </span>
                 )}
@@ -147,7 +165,11 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
                     }`}
                   >
                     {tab.badge && (
-                      <span className="absolute top-1 right-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-rose-600 text-white shadow-xs">
+                      <span className={`absolute top-1 right-1 px-1.5 py-0.2 text-[9px] font-black rounded-full shadow-xs ${
+                        tab.badgeColor === 'emerald'
+                          ? 'bg-[#00E676] text-slate-950 font-black'
+                          : 'bg-rose-600 text-white'
+                      }`}>
                         {tab.badge}
                       </span>
                     )}

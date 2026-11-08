@@ -14,6 +14,8 @@ import { ReportsView } from './components/ReportsView';
 import { SettingsView } from './components/SettingsView';
 import { RefreshCw, MapPin } from 'lucide-react';
 import { APP_CONFIG } from './lib/config';
+import { PosDraftOrder } from './types';
+import { getPosDraft } from './lib/draftStorage';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
@@ -23,6 +25,17 @@ export default function App() {
   const [activeShift, setActiveShift] = useState<CashShift | null>(null);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [posDraft, setPosDraft] = useState<PosDraftOrder | null>(() => getPosDraft());
+
+  useEffect(() => {
+    const handleDraftChange = () => {
+      setPosDraft(getPosDraft());
+    };
+    window.addEventListener('pos_draft_updated', handleDraftChange);
+    return () => window.removeEventListener('pos_draft_updated', handleDraftChange);
+  }, []);
+
+  const draftItemsCount = posDraft?.cartItems?.reduce((acc: number, i: any) => acc + (i.quantity || 1), 0) || 0;
 
   const loadInitialData = async () => {
     try {
@@ -133,6 +146,7 @@ export default function App() {
           pendingInvoicesCount={pendingInvoicesCount}
           onNavigateToInvoices={() => setCurrentTab('invoices')}
           company={company}
+          posDraftCount={draftItemsCount}
         />
 
         {/* Navegação por Separadores */}
@@ -140,6 +154,7 @@ export default function App() {
           currentTab={currentTab}
           onTabChange={(tab) => setCurrentTab(tab)}
           pendingInvoicesCount={pendingInvoicesCount}
+          posDraftCount={draftItemsCount}
         />
       </div>
 
@@ -163,8 +178,14 @@ export default function App() {
           <PosView
             company={company}
             currentUser={{ id: currentUser.id, name: currentUser.name, role: currentUser.role }}
-            onSaleCompleted={refreshShiftAndMetrics}
-            onBackToMainMenu={() => setCurrentTab('dashboard')}
+            onSaleCompleted={() => {
+              refreshShiftAndMetrics();
+              setPosDraft(getPosDraft());
+            }}
+            onBackToMainMenu={() => {
+              setPosDraft(getPosDraft());
+              setCurrentTab('dashboard');
+            }}
           />
         )}
 

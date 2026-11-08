@@ -54,6 +54,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { InvoiceTicketModal } from './InvoiceTicketModal';
+import { getPosDraft, savePosDraft, clearPosDraft } from '../lib/draftStorage';
 
 export interface CartItem extends SaleItem {
   internalCode?: string;
@@ -91,25 +92,29 @@ export const PosView: React.FC<PosViewProps> = ({
   const [priceRange, setPriceRange] = useState<'all' | 'under_10' | '10_to_25' | 'over_25'>('all');
   const [onlyAvailable, setOnlyAvailable] = useState<boolean>(true);
 
+  // Rascunho salvo do Pedido no localStorage (caso o operador tenha ido ao Menu Principal)
+  const initialDraft = useMemo(() => getPosDraft(), []);
+  const [hasDraftNotice, setHasDraftNotice] = useState<boolean>(() => !!initialDraft && initialDraft.cartItems.length > 0);
+
   // Estado do Pedido Atual
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [saleType, setSaleType] = useState<SaleType>('dine_in');
-  const [tableNumber, setTableNumber] = useState('Mesa 01');
-  const [orderReference, setOrderReference] = useState('');
-  const [orderNotes, setOrderNotes] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => (initialDraft?.cartItems as CartItem[]) || []);
+  const [saleType, setSaleType] = useState<SaleType>(() => initialDraft?.saleType || 'dine_in');
+  const [tableNumber, setTableNumber] = useState<string>(() => initialDraft?.tableNumber || 'Mesa 01');
+  const [orderReference, setOrderReference] = useState<string>(() => initialDraft?.orderReference || '');
+  const [orderNotes, setOrderNotes] = useState<string>(() => initialDraft?.orderNotes || '');
+  const [customerPhone, setCustomerPhone] = useState<string>(() => initialDraft?.customerPhone || '');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Estados específicos para funcionalidades de Local / Retirada / Entrega
-  const [isServiceFeeActive, setIsServiceFeeActive] = useState<boolean>(false);
-  const [pickupEstimate, setPickupEstimate] = useState<string>('15 min');
-  const [deliveryNotes, setDeliveryNotes] = useState<string>('');
+  const [isServiceFeeActive, setIsServiceFeeActive] = useState<boolean>(() => initialDraft?.isServiceFeeActive ?? false);
+  const [pickupEstimate, setPickupEstimate] = useState<string>(() => initialDraft?.pickupEstimate || '15 min');
+  const [deliveryNotes, setDeliveryNotes] = useState<string>(() => initialDraft?.deliveryNotes || '');
 
   // Financeiro do Caixa
-  const [discountMode, setDiscountMode] = useState<'percent' | 'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState<number>(0);
-  const [additionalFee, setAdditionalFee] = useState<number>(0);
-  const [deliveryFee, setDeliveryFee] = useState<number>(5.0);
+  const [discountMode, setDiscountMode] = useState<'percent' | 'fixed'>(() => initialDraft?.discountMode || 'percent');
+  const [discountValue, setDiscountValue] = useState<number>(() => initialDraft?.discountValue ?? 0);
+  const [additionalFee, setAdditionalFee] = useState<number>(() => initialDraft?.additionalFee ?? 0);
+  const [deliveryFee, setDeliveryFee] = useState<number>(() => initialDraft?.deliveryFee ?? 5.0);
 
   // Cliente Associado
   const [selectedCustomer, setSelectedCustomer] = useState<{
@@ -119,7 +124,7 @@ export const PosView: React.FC<PosViewProps> = ({
     email?: string;
     phone?: string;
     address?: string;
-  }>({
+  }>(() => initialDraft?.selectedCustomer || {
     name: 'Consumidor Final',
     nif: '999999990',
   });
@@ -274,6 +279,48 @@ export const PosView: React.FC<PosViewProps> = ({
       final: Number(finalAmount.toFixed(2)),
     };
   }, [cartItems, discountMode, discountValue, additionalFee, deliveryFee, saleType, isServiceFeeActive]);
+
+  // Persistência automática em tempo real: salva os produtos no carrinho e dados da venda como rascunho
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      savePosDraft({
+        cartItems,
+        saleType,
+        tableNumber,
+        orderReference,
+        orderNotes,
+        customerPhone,
+        selectedCustomer,
+        discountMode,
+        discountValue,
+        additionalFee,
+        deliveryFee,
+        isServiceFeeActive,
+        pickupEstimate,
+        deliveryNotes,
+        totalFinal: totals.final,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      clearPosDraft();
+    }
+  }, [
+    cartItems,
+    saleType,
+    tableNumber,
+    orderReference,
+    orderNotes,
+    customerPhone,
+    selectedCustomer,
+    discountMode,
+    discountValue,
+    additionalFee,
+    deliveryFee,
+    isServiceFeeActive,
+    pickupEstimate,
+    deliveryNotes,
+    totals.final,
+  ]);
 
   // Imagem correspondente por produto ou categoria
   const getProductImage = (prod: { name?: string; productName?: string; imageUrl?: string }): string => {
@@ -436,6 +483,8 @@ export const PosView: React.FC<PosViewProps> = ({
     setDeliveryNotes('');
     setSelectedCustomer({ name: 'Consumidor Final', nif: '999999990' });
     setIsClearCartConfirmOpen(false);
+    setHasDraftNotice(false);
+    clearPosDraft();
   };
 
   const cancelSale = () => {
@@ -620,6 +669,22 @@ export const PosView: React.FC<PosViewProps> = ({
         {/* Barra Superior do Catálogo: Filtros e Pesquisa */}
         <div className="p-3 border-b border-slate-800 space-y-2.5 bg-[#0d1520] shrink-0">
           <div className="flex items-center gap-2.5 justify-between">
+            {/* Botão de retorno ao Menu Principal em desktop */}
+            {onBackToMainMenu && (
+              <button
+                type="button"
+                onClick={onBackToMainMenu}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs transition-all cursor-pointer shadow-sm shrink-0"
+                title="Voltar ao Painel Principal (O pedido atual permanece salvo como rascunho)"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Menu Principal</span>
+                {cartItems.length > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping ml-0.5" title="Venda salva em rascunho" />
+                )}
+              </button>
+            )}
+
             {/* Campo de Pesquisa Rápida */}
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -893,6 +958,37 @@ export const PosView: React.FC<PosViewProps> = ({
               {cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
+
+          {/* Banner de Rascunho Recuperado (Salvo ao voltar ao Menu Principal) */}
+          {hasDraftNotice && cartItems.length > 0 && (
+            <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs animate-in fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-ping" />
+                <span className="font-bold truncate text-[11px] sm:text-xs">
+                  Rascunho recuperado ({cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.length === 1 ? 'item' : 'itens'})
+                </span>
+                <span className="text-[10px] text-emerald-400/80 hidden sm:inline">&bull; Produtos salvos automaticamente</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setHasDraftNotice(false)}
+                  className="px-2 py-0.5 rounded text-[10px] text-stone-400 hover:text-white cursor-pointer"
+                  title="Fechar aviso"
+                >
+                  Ocultar
+                </button>
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold text-rose-300 bg-rose-950/60 border border-rose-800 hover:bg-rose-900 cursor-pointer"
+                  title="Descartar este rascunho"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
             {/* Ícone e Título da Venda */}

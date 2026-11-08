@@ -289,3 +289,29 @@ export interface AuditLog {
   category: 'venda' | 'fatura' | 'caixa' | 'produto' | 'cliente' | 'sistema';
   details: string;
 }
+
+export interface PosDraftOrder {
+  cartItems: any[];
+  saleType: SaleType;
+  tableNumber: string;
+  orderReference: string;
+  orderNotes: string;
+  customerPhone: string;
+  selectedCustomer: {
+    id?: string;
+    name: string;
+    nif: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  discountMode: 'percent' | 'fixed';
+  discountValue: number;
+  additionalFee: number;
+  deliveryFee: number;
+  isServiceFeeActive: boolean;
+  pickupEstimate: string;
+  deliveryNotes: string;
+  totalFinal: number;
+  updatedAt: string;
+}
