@@ -50,6 +50,8 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Filter,
+  Clock,
+  MapPin,
 } from 'lucide-react';
 import { InvoiceTicketModal } from './InvoiceTicketModal';
 
@@ -92,17 +94,22 @@ export const PosView: React.FC<PosViewProps> = ({
   // Estado do Pedido Atual
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [saleType, setSaleType] = useState<SaleType>('dine_in');
-  const [tableNumber, setTableNumber] = useState('');
+  const [tableNumber, setTableNumber] = useState('Mesa 01');
   const [orderReference, setOrderReference] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
+  // Estados específicos para funcionalidades de Local / Retirada / Entrega
+  const [isServiceFeeActive, setIsServiceFeeActive] = useState<boolean>(false);
+  const [pickupEstimate, setPickupEstimate] = useState<string>('15 min');
+  const [deliveryNotes, setDeliveryNotes] = useState<string>('');
+
   // Financeiro do Caixa
   const [discountMode, setDiscountMode] = useState<'percent' | 'fixed'>('percent');
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [additionalFee, setAdditionalFee] = useState<number>(0);
-  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+  const [deliveryFee, setDeliveryFee] = useState<number>(5.0);
 
   // Cliente Associado
   const [selectedCustomer, setSelectedCustomer] = useState<{
@@ -247,19 +254,26 @@ export const PosView: React.FC<PosViewProps> = ({
       discountTotal = Math.min(gross, discountValue);
     }
 
-    const currentDeliveryFee = saleType === 'delivery' ? (deliveryFee || 5.0) : 0;
-    const finalAmount = Math.max(0, gross - discountTotal + additionalFee + currentDeliveryFee);
+    let serviceFee = 0;
+    if (saleType === 'dine_in' && isServiceFeeActive) {
+      serviceFee = (gross * 10) / 100;
+    }
+
+    const currentAdditional = additionalFee + serviceFee;
+    const currentDeliveryFee = saleType === 'delivery' ? deliveryFee : 0;
+    const finalAmount = Math.max(0, gross - discountTotal + currentAdditional + currentDeliveryFee);
 
     return {
       gross: Number(gross.toFixed(2)),
       discount: Number(discountTotal.toFixed(2)),
-      additional: Number(additionalFee.toFixed(2)),
+      additional: Number(currentAdditional.toFixed(2)),
+      serviceFee: Number(serviceFee.toFixed(2)),
       delivery: Number(currentDeliveryFee.toFixed(2)),
       net: Number(net.toFixed(2)),
       tax: Number(tax.toFixed(2)),
       final: Number(finalAmount.toFixed(2)),
     };
-  }, [cartItems, discountMode, discountValue, additionalFee, deliveryFee, saleType]);
+  }, [cartItems, discountMode, discountValue, additionalFee, deliveryFee, saleType, isServiceFeeActive]);
 
   // Imagem correspondente por produto ou categoria
   const getProductImage = (prod: { name?: string; productName?: string; imageUrl?: string }): string => {
@@ -410,13 +424,16 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const clearCart = () => {
     setCartItems([]);
-    setTableNumber('');
+    setTableNumber('Mesa 01');
     setOrderReference('');
     setOrderNotes('');
     setCustomerPhone('');
     setDiscountValue(0);
     setAdditionalFee(0);
-    setDeliveryFee(0);
+    setDeliveryFee(5.0);
+    setIsServiceFeeActive(false);
+    setPickupEstimate('15 min');
+    setDeliveryNotes('');
     setSelectedCustomer({ name: 'Consumidor Final', nif: '999999990' });
     setIsClearCartConfirmOpen(false);
   };
@@ -484,19 +501,33 @@ export const PosView: React.FC<PosViewProps> = ({
       ];
     }
 
+    const composedNotes = [
+      orderNotes,
+      saleType === 'delivery' && deliveryNotes ? `Entrega: ${deliveryNotes}` : null,
+      saleType === 'takeaway' && pickupEstimate ? `Previsão: ${pickupEstimate}` : null,
+      saleType === 'dine_in' && isServiceFeeActive ? 'Serviço 10% incluído' : null,
+    ].filter(Boolean).join(' | ');
+
+    const composedReference =
+      saleType === 'takeaway' && orderReference
+        ? orderReference
+        : saleType === 'delivery'
+        ? (orderReference || (selectedCustomer.address ? `Entrega: ${selectedCustomer.address}` : undefined))
+        : (orderReference || (customerPhone ? `Tel: ${customerPhone}` : undefined));
+
     const salePayload = {
       items: cartItems,
       payments: paymentEntries,
       saleType,
-      tableNumber: saleType === 'dine_in' ? tableNumber : undefined,
-      orderReference: orderReference || (customerPhone ? `Tel: ${customerPhone}` : undefined),
+      tableNumber: saleType === 'dine_in' ? (tableNumber || 'Mesa 01') : undefined,
+      orderReference: composedReference,
       customer: {
         ...selectedCustomer,
         phone: customerPhone || selectedCustomer.phone,
       },
       operatorId: currentUser.id,
       operatorName: currentUser.name,
-      notes: orderNotes,
+      notes: composedNotes,
       documentType: docType,
     };
 
@@ -845,7 +876,7 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* COLUNA DIREITA: CAIXA PDV PROFISSIONAL ASSX TECH (Ajustado, sem cortes e 100% responsivo) */}
-      <div className={`${mobilePosTab === 'cart' ? 'flex' : 'hidden'} lg:flex lg:col-span-5 xl:col-span-5 2xl:col-span-5 flex-col flex-1 min-h-0 lg:h-full bg-[#0d1520] lg:rounded-2xl lg:border-2 lg:border-emerald-500 shadow-2xl overflow-hidden text-white`}>
+      <div className={`${mobilePosTab === 'cart' ? 'flex' : 'hidden'} lg:flex lg:col-span-5 xl:col-span-5 2xl:col-span-5 flex-col flex-1 min-h-0 lg:h-full bg-[#0d1520] lg:rounded-2xl lg:border-2 lg:border-emerald-500 shadow-2xl overflow-y-auto lg:overflow-hidden custom-pos-scrollbar touch-scroll-container text-white`}>
         {/* 1. CABEÇALHO DA VENDA */}
         <div className="p-2 sm:p-3 border-b border-slate-800 bg-[#0d1520] space-y-2 shrink-0">
           {/* Botão de retorno ao cardápio exclusivo em mobile */}
@@ -853,12 +884,12 @@ export const PosView: React.FC<PosViewProps> = ({
             <button
               type="button"
               onClick={() => setMobilePosTab('catalog')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-emerald-400 font-bold text-xs cursor-pointer border border-slate-700/60 active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-emerald-400 font-bold text-xs cursor-pointer border border-slate-700/60 active:scale-95 transition-all shadow-xs"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>+ Adicionar Mais Itens</span>
             </button>
-            <span className="text-xs text-stone-300 font-bold">
+            <span className="text-xs text-stone-300 font-bold bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
               {cartItems.reduce((acc, i) => acc + i.quantity, 0)} {cartItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
@@ -877,7 +908,7 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
             </div>
 
-            {/* Formas de Atendimento (Pills) */}
+            {/* Formas de Atendimento: Cards Funcionais (Local / Retirada / Entrega) */}
             <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 shrink-0">
               <button
                 type="button"
@@ -885,11 +916,12 @@ export const PosView: React.FC<PosViewProps> = ({
                   setSaleType('dine_in');
                   setDeliveryFee(0);
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   saleType === 'dine_in'
-                    ? 'bg-[#22c55e] text-slate-950 shadow-md shadow-emerald-500/20'
+                    ? 'bg-[#00E676] text-slate-950 font-black shadow-md shadow-emerald-500/25 scale-[1.02]'
                     : 'text-stone-300 hover:text-white hover:bg-slate-800'
                 }`}
+                title="Atendimento no salão / mesa"
               >
                 <Utensils className="w-3.5 h-3.5" />
                 <span>Local</span>
@@ -900,11 +932,12 @@ export const PosView: React.FC<PosViewProps> = ({
                   setSaleType('takeaway');
                   setDeliveryFee(0);
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   saleType === 'takeaway'
-                    ? 'bg-[#22c55e] text-slate-950 shadow-md shadow-emerald-500/20'
+                    ? 'bg-[#00E676] text-slate-950 font-black shadow-md shadow-emerald-500/25 scale-[1.02]'
                     : 'text-stone-300 hover:text-white hover:bg-slate-800'
                 }`}
+                title="Retirada no balcão / Takeaway"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 <span>Retirada</span>
@@ -915,11 +948,12 @@ export const PosView: React.FC<PosViewProps> = ({
                   setSaleType('delivery');
                   if (deliveryFee === 0) setDeliveryFee(5.0);
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   saleType === 'delivery'
-                    ? 'bg-[#22c55e] text-slate-950 shadow-md shadow-emerald-500/20'
+                    ? 'bg-[#00E676] text-slate-950 font-black shadow-md shadow-emerald-500/25 scale-[1.02]'
                     : 'text-stone-300 hover:text-white hover:bg-slate-800'
                 }`}
+                title="Entrega em domicílio / Delivery"
               >
                 <Truck className="w-3.5 h-3.5" />
                 <span>Entrega</span>
@@ -927,7 +961,164 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
           </div>
 
-          {/* Barra de Identificação do Pedido: Cliente, Telefone e Mesa/Comanda */}
+          {/* PAINEL DINÂMICO CONTEXTUAL DO TIPO DE ATENDIMENTO SELECIONADO */}
+          {saleType === 'dine_in' && (
+            <div className="p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-emerald-400 flex items-center gap-1">
+                  <Utensils className="w-3 h-3" />
+                  Mesa / Comanda Rápida:
+                </span>
+                {/* Switch de Taxa de Serviço 10% Garçom */}
+                <button
+                  type="button"
+                  onClick={() => setIsServiceFeeActive(!isServiceFeeActive)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                    isServiceFeeActive
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-xs'
+                      : 'bg-slate-900/80 text-stone-400 border-slate-700 hover:text-white'
+                  }`}
+                  title="Ativar/Desativar taxa de serviço de 10% para o garçom"
+                >
+                  <Check className={`w-3 h-3 ${isServiceFeeActive ? 'opacity-100' : 'opacity-30'}`} />
+                  <span>10% Garçom {isServiceFeeActive ? `(+${formatCurrency(totals.serviceFee)})` : ''}</span>
+                </button>
+              </div>
+
+              {/* Chips de Mesas Mais Usadas */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-pos-scrollbar text-[10px]">
+                {['Mesa 01', 'Mesa 02', 'Mesa 03', 'Mesa 04', 'Mesa 05', 'Mesa 06', 'Balcão', 'Comanda 01'].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setTableNumber(m)}
+                    className={`px-2 py-0.5 rounded-lg font-bold shrink-0 transition-colors cursor-pointer border ${
+                      tableNumber === m
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                        : 'bg-slate-900/90 text-stone-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {saleType === 'takeaway' && (
+            <div className="p-2 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-amber-400 flex items-center gap-1">
+                  <ShoppingBag className="w-3 h-3" />
+                  Retirada no Balcão • Tempo Estimado:
+                </span>
+                <span className="text-[10px] text-amber-300 font-semibold bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  Taxa R$ 0,00
+                </span>
+              </div>
+
+              {/* Seletor de Tempo de Preparo */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-pos-scrollbar text-[10px]">
+                {[
+                  { label: '⚡ Imediato', val: 'Pronto' },
+                  { label: '⏱ 15 min', val: '15 min' },
+                  { label: '⏱ 25 min', val: '25 min' },
+                  { label: '⏱ 35 min', val: '35 min' },
+                  { label: '⏱ 45 min', val: '45 min' },
+                ].map((t) => (
+                  <button
+                    key={t.val}
+                    type="button"
+                    onClick={() => setPickupEstimate(t.val)}
+                    className={`px-2 py-0.5 rounded-lg font-bold shrink-0 transition-colors cursor-pointer border ${
+                      pickupEstimate === t.val
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                        : 'bg-slate-900/90 text-stone-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {saleType === 'delivery' && (
+            <div className="p-2 rounded-xl bg-sky-950/20 border border-sky-500/30 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-sky-400 flex items-center gap-1">
+                  <Truck className="w-3 h-3" />
+                  Taxa de Entrega:
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-stone-400">R$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={deliveryFee}
+                    onChange={(e) => setDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-14 px-1.5 py-0.5 rounded bg-slate-900 border border-sky-500/40 text-white font-mono text-xs text-right focus:outline-hidden focus:border-sky-400"
+                  />
+                </div>
+              </div>
+
+              {/* Chips Rápidos de Taxa de Entrega */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-pos-scrollbar text-[10px]">
+                {[
+                  { label: 'Grátis', val: 0 },
+                  { label: 'R$ 5,00', val: 5 },
+                  { label: 'R$ 8,00', val: 8 },
+                  { label: 'R$ 10,00', val: 10 },
+                  { label: 'R$ 15,00', val: 15 },
+                ].map((fee) => (
+                  <button
+                    key={fee.val}
+                    type="button"
+                    onClick={() => setDeliveryFee(fee.val)}
+                    className={`px-2 py-0.5 rounded-lg font-bold shrink-0 transition-colors cursor-pointer border ${
+                      deliveryFee === fee.val
+                        ? 'bg-sky-500 text-slate-950 border-sky-400 font-black'
+                        : 'bg-slate-900/90 text-stone-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {fee.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input Direto de Endereço de Entrega */}
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 focus-within:border-sky-500 transition-colors">
+                <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Endereço: Rua, número, bairro, complemento..."
+                  value={selectedCustomer.address || ''}
+                  onChange={(e) =>
+                    setSelectedCustomer((prev) => ({
+                      ...prev,
+                      address: e.target.value,
+                    }))
+                  }
+                  className="w-full bg-transparent text-xs text-white placeholder:text-stone-500 focus:outline-hidden truncate"
+                />
+              </div>
+
+              {/* Instruções para o Motoboy */}
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 focus-within:border-sky-500 transition-colors">
+                <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Instruções p/ o motoboy (Ex: interfone 302, portão azul)..."
+                  value={deliveryNotes}
+                  onChange={(e) => setDeliveryNotes(e.target.value)}
+                  className="w-full bg-transparent text-xs text-white placeholder:text-stone-500 focus:outline-hidden truncate"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Barra de Identificação do Pedido: Cliente, Telefone e Mesa/Referência */}
           <div className="grid grid-cols-12 gap-1.5">
             {/* Campo 1: Cliente */}
             <div
@@ -962,16 +1153,22 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
             </div>
 
-            {/* Campo 3: Mesa/Comanda + Dropdown */}
+            {/* Campo 3: Mesa / Identificador / Senha */}
             <div className="col-span-3 bg-slate-900/90 border border-slate-800 rounded-xl px-2 py-1.5 flex items-center gap-1 focus-within:border-emerald-500 transition-colors">
-              <Utensils className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              {saleType === 'dine_in' ? (
+                <Utensils className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              ) : saleType === 'takeaway' ? (
+                <ShoppingBag className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              ) : (
+                <Truck className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              )}
               <div className="min-w-0 flex-1">
                 <span className="block text-[8px] sm:text-[9px] uppercase font-bold text-stone-400 leading-none mb-0.5 truncate">
-                  Mesa/Com.
+                  {saleType === 'dine_in' ? 'Mesa' : saleType === 'takeaway' ? 'Senha' : 'Ref.'}
                 </span>
                 <input
                   type="text"
-                  placeholder="Ex: 12"
+                  placeholder={saleType === 'dine_in' ? 'Mesa 01' : saleType === 'takeaway' ? 'Senha 01' : 'Ref. Pedido'}
                   value={saleType === 'dine_in' ? tableNumber : orderReference}
                   onChange={(e) => {
                     if (saleType === 'dine_in') setTableNumber(e.target.value);
@@ -984,7 +1181,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 onClick={() => setShowCustomerDropdown(!showCustomerDropdown)}
                 className="p-0.5 text-stone-400 hover:text-white shrink-0 cursor-pointer"
-                title="Mais Opções"
+                title="Mais Opções de Identificação"
               >
                 {showCustomerDropdown ? (
                   <ChevronUp className="w-3 h-3" />
@@ -995,9 +1192,9 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
           </div>
 
-          {/* Painel Expansível de Detalhes Adicionais */}
+          {/* Painel Expansível de Detalhes Adicionais (CPF na Nota, etc) */}
           {showCustomerDropdown && (
-            <div className="p-2.5 bg-slate-900/95 border border-slate-800 rounded-xl space-y-1.5 text-xs">
+            <div className="p-2.5 bg-slate-900/95 border border-slate-800 rounded-xl space-y-1.5 text-xs animate-in fade-in duration-150">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-stone-300">CPF/CNPJ na Nota:</span>
                 <input
@@ -1013,23 +1210,6 @@ export const PosView: React.FC<PosViewProps> = ({
                   className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-xs w-36 text-right focus:border-emerald-500"
                 />
               </div>
-              {saleType === 'delivery' && (
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-stone-300">Endereço de Entrega:</span>
-                  <input
-                    type="text"
-                    placeholder="Rua, número, bairro..."
-                    value={selectedCustomer.address || ''}
-                    onChange={(e) =>
-                      setSelectedCustomer((prev) => ({
-                        ...prev,
-                        address: e.target.value,
-                      }))
-                    }
-                    className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-white text-xs w-48 focus:border-emerald-500"
-                  />
-                </div>
-              )}
               {orderNotes && (
                 <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700/80 text-stone-300 text-[11px] flex items-start gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
@@ -1041,37 +1221,44 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* 2. CABEÇALHO DA LISTA DE PRODUTOS */}
-        <div className="px-3 py-1.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center text-[10px] font-bold text-stone-400 uppercase tracking-wider shrink-0">
+        <div className="px-3 py-1.5 border-b border-slate-800/80 bg-slate-900/60 flex items-center text-[10px] font-bold text-stone-400 uppercase tracking-wider shrink-0">
           <div className="flex-1">Produto</div>
-          <div className="w-18 sm:w-20 text-center">Qtd.</div>
+          <div className="w-20 text-center">Qtd.</div>
           <div className="hidden sm:block sm:w-20 text-right">Preço</div>
-          <div className="w-16 sm:w-20 text-right">Subtotal</div>
+          <div className="w-20 sm:w-20 text-right">Subtotal</div>
           <div className="w-7 shrink-0"></div>
         </div>
 
-        {/* 3. LISTA DE PRODUTOS ADICIONADOS */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain custom-pos-scrollbar touch-scroll-container p-2 sm:p-2.5 space-y-1.5">
+        {/* 3. LISTA DE PRODUTOS ADICIONADOS (Com altura livre no mobile e scroll nativo ajustado) */}
+        <div className="p-2 sm:p-2.5 space-y-1.5 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overscroll-y-contain custom-pos-scrollbar touch-scroll-container">
           {cartItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-stone-500 gap-2 py-6">
+            <div className="flex flex-col items-center justify-center py-10 lg:h-full text-stone-500 gap-2">
               <div className="w-14 h-14 rounded-full bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-500">
                 <ShoppingCart className="w-7 h-7 stroke-[1.5]" />
               </div>
               <div className="text-center px-4">
                 <p className="font-bold text-xs sm:text-sm text-stone-300">Nenhum produto adicionado.</p>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  Selecione os itens no catálogo ao lado.
+                  Selecione os itens no cardápio para montar o pedido.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setMobilePosTab('catalog')}
+                  className="lg:hidden mt-3 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-bold text-xs cursor-pointer hover:bg-emerald-500/30 transition-all"
+                >
+                  Ir para o Cardápio
+                </button>
               </div>
             </div>
           ) : (
             cartItems.map((item, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between gap-1.5 p-1.5 sm:p-2 rounded-xl bg-slate-900/70 border border-slate-800/80 hover:border-slate-700 transition-colors"
+                className="flex items-center justify-between gap-1.5 p-2 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700 transition-colors shadow-xs"
               >
                 {/* Imagem Thumbnail e Detalhes do Produto */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
                     <img
                       src={item.imageUrl || getProductImage(item)}
                       alt={item.productName}
@@ -1087,11 +1274,11 @@ export const PosView: React.FC<PosViewProps> = ({
                       {item.productName}
                     </h5>
                     {item.description ? (
-                      <p className="text-[10px] text-stone-400 truncate max-w-[170px]" title={item.description}>
+                      <p className="text-[10px] text-stone-400 truncate max-w-[200px]" title={item.description}>
                         {item.description}
                       </p>
                     ) : null}
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className="text-[9px] font-mono text-stone-400">
                         Cód: {item.internalCode || '1001'}
                       </span>
@@ -1105,7 +1292,7 @@ export const PosView: React.FC<PosViewProps> = ({
                               notes: item.notes || '',
                             })
                           }
-                          className="px-1 py-0.2 rounded bg-sky-950/80 border border-sky-600/50 text-[9px] font-semibold text-sky-300 hover:bg-sky-900 transition-colors truncate max-w-[100px] cursor-pointer"
+                          className="px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-600/50 text-[9px] font-semibold text-sky-300 hover:bg-sky-900 transition-colors truncate max-w-[130px] cursor-pointer"
                         >
                           Obs: {item.notes}
                         </button>
@@ -1133,7 +1320,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   <button
                     type="button"
                     onClick={() => updateQuantity(index, -1)}
-                    className="w-5 h-5 flex items-center justify-center text-stone-300 hover:text-white hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                    className="w-6 h-6 flex items-center justify-center text-stone-300 hover:text-white hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                    title="Diminuir quantidade"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
@@ -1143,7 +1331,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   <button
                     type="button"
                     onClick={() => updateQuantity(index, 1)}
-                    className="w-5 h-5 flex items-center justify-center text-stone-300 hover:text-white hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                    className="w-6 h-6 flex items-center justify-center text-stone-300 hover:text-white hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                    title="Aumentar quantidade"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
@@ -1155,7 +1344,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
 
                 {/* Subtotal da Linha */}
-                <div className="w-16 sm:w-20 text-right font-black text-xs sm:text-sm text-white shrink-0 font-mono">
+                <div className="w-20 sm:w-20 text-right font-black text-xs sm:text-sm text-white shrink-0 font-mono">
                   {formatCurrency(item.total)}
                 </div>
 
@@ -1175,11 +1364,11 @@ export const PosView: React.FC<PosViewProps> = ({
           )}
         </div>
 
-        {/* 4. RESUMO FINANCEIRO & BOTÕES DE OPERAÇÃO (100% Ajustado, sem corte) */}
-        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-1.5 overflow-y-auto max-h-[46vh] lg:max-h-none custom-pos-scrollbar">
+        {/* 4. RESUMO FINANCEIRO & BOTÕES DE OPERAÇÃO (Ajustado, sem cortes, sem squeeze) */}
+        <div className="border-t-2 border-emerald-500/50 p-2 sm:p-2.5 bg-[#0a0f18] shrink-0 space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
-            {/* Bloco Esquerdo: Resumo Financeiro */}
-            <div className="flex flex-col justify-between p-2 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1 text-xs">
+            {/* Bloco Esquerdo: Resumo Financeiro Completo */}
+            <div className="flex flex-col justify-between p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5 text-xs">
               <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-stone-300 text-[10px]">
                 <Receipt className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Resumo Financeiro</span>
@@ -1236,11 +1425,13 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
               </div>
 
-              {/* Acréscimos */}
+              {/* Acréscimos (inclui 10% Garçom quando ativo) */}
               <div className="flex justify-between items-center text-stone-400 text-[11px]">
-                <span>Acréscimos:</span>
+                <span>
+                  Acréscimos {totals.serviceFee > 0 ? '(inclui 10% Garçom)' : ''}:
+                </span>
                 <span className="font-bold text-white font-mono">
-                  {additionalFee > 0 ? `+${formatCurrency(totals.additional)}` : 'R$ 0,00'}
+                  {totals.additional > 0 ? `+${formatCurrency(totals.additional)}` : 'R$ 0,00'}
                 </span>
               </div>
 
@@ -1353,7 +1544,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 onClick={handleOpenPayment}
                 disabled={cartItems.length === 0}
-                className="w-full py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                className="w-full py-3 px-3 rounded-xl font-black text-sm bg-[#00E676] hover:bg-[#00c853] text-stone-950 shadow-md shadow-emerald-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
                 <span>FINALIZAR VENDA</span>
