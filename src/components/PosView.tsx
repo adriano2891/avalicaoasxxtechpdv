@@ -47,6 +47,9 @@ import {
   DollarSign,
   Coffee,
   Sparkles,
+  SlidersHorizontal,
+  RotateCcw,
+  Filter,
 } from 'lucide-react';
 import { InvoiceTicketModal } from './InvoiceTicketModal';
 
@@ -77,10 +80,14 @@ export const PosView: React.FC<PosViewProps> = ({
   // Controle de Abas no Mobile ('catalog' = cardápio de produtos, 'cart' = caixa / carrinho)
   const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'cart'>('catalog');
 
-  // Filtros de produtos (Área Esquerda Intocada)
+  // Filtros de produtos (Área Esquerda e Mobile)
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<'default' | 'price_asc' | 'price_desc' | 'name_asc'>('default');
+  const [priceRange, setPriceRange] = useState<'all' | 'under_10' | '10_to_25' | 'over_25'>('all');
+  const [onlyAvailable, setOnlyAvailable] = useState<boolean>(true);
 
   // Estado do Pedido Atual
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -172,12 +179,34 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   };
 
-  // Filtragem de produtos (Área esquerda estritamente preservada)
+  // Contagem de filtros ativos para badge no botão e chips
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (onlyFavorites) count++;
+    if (sortBy !== 'default') count++;
+    if (priceRange !== 'all') count++;
+    if (!onlyAvailable) count++;
+    return count;
+  }, [onlyFavorites, sortBy, priceRange, onlyAvailable]);
+
+  const clearAllFilters = () => {
+    setOnlyFavorites(false);
+    setSortBy('default');
+    setPriceRange('all');
+    setOnlyAvailable(true);
+    setSelectedCategory('all');
+    setSearchQuery('');
+  };
+
+  // Filtragem e ordenação de produtos
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (!p.available) return false;
+    let list = products.filter((p) => {
+      if (onlyAvailable && !p.available) return false;
       if (onlyFavorites && !p.isFavorite) return false;
       if (selectedCategory !== 'all' && p.categoryId !== selectedCategory) return false;
+      if (priceRange === 'under_10' && p.price > 10) return false;
+      if (priceRange === '10_to_25' && (p.price < 10 || p.price > 25)) return false;
+      if (priceRange === 'over_25' && p.price < 25) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesName = p.name.toLowerCase().includes(query);
@@ -186,7 +215,17 @@ export const PosView: React.FC<PosViewProps> = ({
       }
       return true;
     });
-  }, [products, selectedCategory, searchQuery, onlyFavorites]);
+
+    if (sortBy === 'price_asc') {
+      list = [...list].sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price_desc') {
+      list = [...list].sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name_asc') {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return list;
+  }, [products, selectedCategory, searchQuery, onlyFavorites, onlyAvailable, priceRange, sortBy]);
 
   // Cálculos financeiros do carrinho em tempo real
   const totals = useMemo(() => {
@@ -572,16 +611,24 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* Botão de Filtros */}
             <button
-              onClick={() => setOnlyFavorites(!onlyFavorites)}
+              type="button"
+              onClick={() => setIsFilterModalOpen(true)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 cursor-pointer ${
-                onlyFavorites
-                  ? 'bg-amber-500 border-amber-500 text-stone-950 shadow-xs'
+                activeFiltersCount > 0
+                  ? 'bg-amber-500 border-amber-400 text-stone-950 shadow-md shadow-amber-500/20 font-black'
                   : 'bg-slate-900 border-slate-800 text-stone-300 hover:bg-slate-800 hover:text-white'
               }`}
+              title="Abrir filtros avançados de produtos"
             >
-              <Star className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-stone-950 text-stone-950' : 'text-amber-400'}`} />
+              <Star className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'fill-stone-950 text-stone-950' : 'text-amber-400'}`} />
               <span>Filtros</span>
-              <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+              {activeFiltersCount > 0 ? (
+                <span className="w-4 h-4 rounded-full bg-stone-950 text-amber-400 font-mono text-[10px] font-black flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+              )}
             </button>
           </div>
 
@@ -611,6 +658,84 @@ export const PosView: React.FC<PosViewProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Chips de Filtros Ativos (Remoção Rápida com 1 Toque) */}
+          {(activeFiltersCount > 0 || (selectedCategory !== 'all' && categories.length > 0)) && (
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-0.5">
+              <span className="text-[10px] text-stone-400 font-bold uppercase shrink-0">Filtros:</span>
+              {onlyFavorites && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyFavorites(false)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold shrink-0 hover:bg-amber-500/30 transition-colors cursor-pointer"
+                  title="Remover filtro de favoritos"
+                >
+                  <Star className="w-2.5 h-2.5 fill-amber-300" />
+                  <span>Favoritos</span>
+                  <X className="w-3 h-3 stroke-[2.5]" />
+                </button>
+              )}
+              {sortBy !== 'default' && (
+                <button
+                  type="button"
+                  onClick={() => setSortBy('default')}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[10px] font-bold shrink-0 hover:bg-sky-500/30 transition-colors cursor-pointer"
+                  title="Restaurar ordenação padrão"
+                >
+                  <span>
+                    {sortBy === 'price_asc' && 'Menor Preço'}
+                    {sortBy === 'price_desc' && 'Maior Preço'}
+                    {sortBy === 'name_asc' && 'Nome (A-Z)'}
+                  </span>
+                  <X className="w-3 h-3 stroke-[2.5]" />
+                </button>
+              )}
+              {priceRange !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setPriceRange('all')}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold shrink-0 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+                  title="Remover filtro de preço"
+                >
+                  <span>
+                    {priceRange === 'under_10' && 'Até R$ 10'}
+                    {priceRange === '10_to_25' && 'R$ 10 - R$ 25'}
+                    {priceRange === 'over_25' && 'Acima de R$ 25'}
+                  </span>
+                  <X className="w-3 h-3 stroke-[2.5]" />
+                </button>
+              )}
+              {!onlyAvailable && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyAvailable(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-stone-500/20 border border-stone-500/40 text-stone-300 text-[10px] font-bold shrink-0 hover:bg-stone-500/30 transition-colors cursor-pointer"
+                  title="Apenas disponíveis"
+                >
+                  <span>Inclui Indisponíveis</span>
+                  <X className="w-3 h-3 stroke-[2.5]" />
+                </button>
+              )}
+              {selectedCategory !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('all')}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-500/20 border border-teal-500/40 text-teal-300 text-[10px] font-bold shrink-0 hover:bg-teal-500/30 transition-colors cursor-pointer"
+                  title="Ver todas as categorias"
+                >
+                  <span>{categories.find((c) => c.id === selectedCategory)?.name || 'Categoria'}</span>
+                  <X className="w-3 h-3 stroke-[2.5]" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="text-[10px] text-stone-400 hover:text-amber-400 font-semibold underline shrink-0 cursor-pointer ml-1 transition-colors"
+              >
+                Limpar todos
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Grelha de Produtos com Foto Correspondente e Rolagem Fluida */}
@@ -2266,25 +2391,254 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       )}
 
-      {/* BARRA FLUTUANTE DE FINALIZAÇÃO NO MOBILE (Apenas em telas pequenas quando no catálogo e houver itens) */}
-      {cartItems.length > 0 && mobilePosTab === 'catalog' && (
-        <div className="lg:hidden shrink-0 p-2 bg-[#0a1017] border-t border-slate-800 z-30 animate-in slide-in-from-bottom-2">
-          <button
-            type="button"
-            onClick={() => setMobilePosTab('cart')}
-            className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-stone-950 rounded-2xl font-black text-xs sm:text-sm shadow-2xl border border-emerald-400 active:scale-95 transition-all cursor-pointer"
+      {/* MODAL / BOTTOM SHEET DE FILTROS DO PDV */}
+      {isFilterModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setIsFilterModalOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-[#0d1520] border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[85vh] text-white animate-in slide-in-from-bottom duration-250"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-stone-950 text-emerald-400 flex items-center justify-center text-xs font-black">
-                {cartItems.reduce((acc, i) => acc + i.quantity, 0)}
-              </span>
-              <span>Itens no Pedido</span>
+            {/* Cabeçalho do Filtro */}
+            <div className="p-4 bg-[#0a1017] border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <SlidersHorizontal className="w-4 h-4 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white leading-tight">
+                    Filtros do Catálogo
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    {filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-stone-300 text-xs font-semibold cursor-pointer border border-slate-700 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Limpar</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-stone-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm sm:text-base font-black">{formatCurrency(totals.final)}</span>
-              <span className="text-[11px] font-black bg-stone-950/20 px-2.5 py-1 rounded-lg">Ver Carrinho &rarr;</span>
+
+            {/* Conteúdo dos Filtros com Rolagem Fluida */}
+            <div className="p-4 space-y-4 overflow-y-auto custom-pos-scrollbar touch-scroll-container flex-1">
+              {/* Destaques Rápidos */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-stone-400 tracking-wider mb-2">
+                  Destaques &amp; Status
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOnlyFavorites(!onlyFavorites)}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      onlyFavorites
+                        ? 'bg-amber-500 border-amber-400 text-stone-950 shadow-md shadow-amber-500/20 font-black'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <Star className={`w-4 h-4 ${onlyFavorites ? 'fill-stone-950 text-stone-950' : 'text-amber-400'}`} />
+                    <span>Apenas Favoritos</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOnlyAvailable(!onlyAvailable)}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      onlyAvailable
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                        : 'bg-slate-900 border-slate-800 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span>Em Estoque</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Ordenar Produtos */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-stone-400 tracking-wider mb-2">
+                  Ordenar Por
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('default')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      sortBy === 'default'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Padrão / Relevância
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('name_asc')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      sortBy === 'name_asc'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Nome (A &rarr; Z)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('price_asc')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      sortBy === 'price_asc'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Menor Preço (R$ &uarr;)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('price_desc')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      sortBy === 'price_desc'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Maior Preço (R$ &darr;)
+                  </button>
+                </div>
+              </div>
+
+              {/* Faixa de Preço */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-stone-400 tracking-wider mb-2">
+                  Faixa de Preço
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPriceRange('all')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      priceRange === 'all'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Todos os Preços
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceRange('under_10')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      priceRange === 'under_10'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Até R$ 10,00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceRange('10_to_25')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      priceRange === '10_to_25'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    R$ 10,00 a R$ 25,00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceRange('over_25')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                      priceRange === 'over_25'
+                        ? 'bg-[#00E676] text-stone-950 border-[#00E676] font-black shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-stone-300 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    Acima de R$ 25,00
+                  </button>
+                </div>
+              </div>
+
+              {/* Categorias */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-stone-400 tracking-wider mb-2">
+                  Filtrar por Categoria
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      selectedCategory === 'all'
+                        ? 'bg-[#00E676] text-stone-950 shadow-sm font-black'
+                        : 'bg-slate-900 border border-slate-800 text-stone-300 hover:text-white'
+                    }`}
+                  >
+                    Todas ({products.length})
+                  </button>
+                  {categories.map((cat) => {
+                    const count = products.filter((p) => p.categoryId === cat.id).length;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          selectedCategory === cat.id
+                            ? 'bg-[#00E676] text-stone-950 shadow-sm font-black'
+                            : 'bg-slate-900 border border-slate-800 text-stone-300 hover:text-white'
+                        }`}
+                      >
+                        {cat.name} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </button>
+
+            {/* Rodapé de Ações */}
+            <div className="p-3 bg-[#0a1017] border-t border-slate-800 flex items-center gap-2 shrink-0">
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-stone-300 font-bold text-xs cursor-pointer border border-slate-700 transition-colors"
+                >
+                  Resetar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-[#00E676] hover:bg-[#00c853] text-stone-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Ver {filteredProducts.length} {filteredProducts.length === 1 ? 'Produto' : 'Produtos'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
